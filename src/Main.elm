@@ -114,7 +114,10 @@ view : Model -> Html Msg
 view { ethPrice, ethAddresses, formAddress, ethBalances } =
   div []
     [ h1 [] [ text "Blocksum" ]
-    , h2 [] [ text ("Price: " ++ (formatPrice ethPrice)) ]
+    , h2 []
+      [ text ("Price: " ++ (formatPrice ethPrice))
+      , button [ onClick FetchEthPrice ] [ text "fetch" ]
+      ]
     , table [] (formatAddresses ethPrice ethBalances ethAddresses)
     , Html.form [ onSubmit AddAddress ]
       [ input [ name "address", value formAddress, onInput TypeAddress ] []
