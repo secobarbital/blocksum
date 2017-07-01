@@ -1,4 +1,6 @@
 import Dict exposing (Dict)
+import FormatNumber exposing (format)
+import FormatNumber.Locales exposing (usLocale)
 import Json.Decode as Decode
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -82,6 +84,11 @@ formatPrice price =
     Just x ->
       toString x
 
+formatMaybeFloat : Maybe Float -> String
+formatMaybeFloat f =
+  Maybe.map (format usLocale) f
+    |> Maybe.withDefault ""
+
 formatAddress : Maybe Float -> Dict String Float -> String -> Html Msg
 formatAddress price balances address =
   let
@@ -94,8 +101,8 @@ formatAddress price balances address =
   in
     tr []
       [ td [] [ text address ]
-      , td [] [ text (toString balance) ]
-      , td [] [ text (toString value) ]
+      , td [] [ text (formatMaybeFloat balance) ]
+      , td [] [ text (formatMaybeFloat value) ]
       , td [] [ button [ onClick (DeleteAddress address) ] [ text "Delete" ] ]
       ]
 
