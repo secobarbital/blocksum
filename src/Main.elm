@@ -23,13 +23,16 @@ type alias Model =
 -- UPDATE --
 
 type Msg = AddAddress
+  | DeleteAddress String
   | TypeAddress String
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg { ethPrice, ethAddresses, formAddress } =
   case msg of
     AddAddress ->
-      (Model ethPrice (formAddress :: ethAddresses) "", Cmd.none)
+      (Model ethPrice (List.append ethAddresses [formAddress]) "", Cmd.none)
+    DeleteAddress address ->
+      (Model ethPrice (List.filter ((/=) address) ethAddresses) formAddress, Cmd.none)
     TypeAddress address ->
       (Model ethPrice ethAddresses address, Cmd.none)
 
@@ -45,7 +48,10 @@ formatPrice price =
 
 formatAddress : String -> Html Msg
 formatAddress address =
-  li [] [ text address ]
+  li []
+    [ span [] [ text address ]
+    , button [ onClick (DeleteAddress address) ] [ text "Delete" ]
+    ]
 
 view : Model -> Html Msg
 view { ethPrice, ethAddresses, formAddress } =
