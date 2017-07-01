@@ -24,6 +24,8 @@ type alias Model =
 
 type Msg = AddAddress
   | DeleteAddress String
+  | FetchEthPrice
+  | ReceivedEthPrice (Result Http.Error String)
   | TypeAddress String
 
 update : Msg -> Model -> (Model, Cmd Msg)
@@ -31,10 +33,21 @@ update msg { ethPrice, ethAddresses, formAddress } =
   case msg of
     AddAddress ->
       (Model ethPrice (List.append ethAddresses [formAddress]) "", Cmd.none)
+
     DeleteAddress address ->
       (Model ethPrice (List.filter ((/=) address) ethAddresses) formAddress, Cmd.none)
+
+    FetchEthPrice ->
+      (Model ethPrice ethAddresses formAddress, fetchEthPrice)
+
     TypeAddress address ->
       (Model ethPrice ethAddresses address, Cmd.none)
+
+    ReceivedEthPrice (Ok price) ->
+      (Model (Result.toMaybe (String.toFloat price)) ethAddresses formAddress, Cmd.none)
+
+    ReceivedEthPrice (Err _) ->
+      (Model ethPrice ethAddresses formAddress, Cmd.none)
 
 -- VIEW --
 
@@ -73,6 +86,14 @@ subscriptions model =
 
 -- INIT --
 
+decodeEthPrice : Decode.Decoder String
+decodeEthPrice =
+  Decode.at [ "0", "price_usd" ] Decode.string
+
+fetchEthPrice : Cmd Msg
+fetchEthPrice =
+  Http.send ReceivedEthPrice (Http.get "https://api.coinmarketcap.com/v1/ticker/ethereum/" decodeEthPrice)
+
 init : (Model, Cmd Msg)
 init =
-  (Model Nothing [] "", Cmd.none)
+  (Model Nothing [] "", fetchEthPrice)
