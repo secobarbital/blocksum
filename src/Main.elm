@@ -33,45 +33,45 @@ type Msg = AddAddress
   | ReceivedEthPrice (Result Http.Error String)
   | TypeAddress String
 
+getEthFromWei : Int -> Float
+getEthFromWei wei =
+  (toFloat wei) / 1000000000000000000
+
+insertWeiBalance : String -> Int -> Dict String Float -> Dict String Float
+insertWeiBalance address weiBalance ethBalances =
+  Dict.insert address (getEthFromWei weiBalance) ethBalances
+
 update : Msg -> Model -> (Model, Cmd Msg)
-update msg { ethPrice, ethAddresses, formAddress, ethBalances } =
+update msg model =
   case msg of
     AddAddress ->
-      (Model ethPrice (List.append ethAddresses [formAddress]) "" ethBalances, (fetchEthBalance formAddress))
+      ({ model | ethAddresses = (List.append model.ethAddresses [model.formAddress]) }, fetchEthBalance model.formAddress)
 
     DeleteAddress address ->
-      (Model ethPrice (List.filter ((/=) address) ethAddresses) formAddress ethBalances, Cmd.none)
+      ({ model | ethAddresses = (List.filter ((/=) address) model.ethAddresses) }, Cmd.none)
 
     FetchEthPrice ->
-      (Model ethPrice ethAddresses formAddress ethBalances, fetchEthPrice)
+      (model, fetchEthPrice)
 
     TypeAddress address ->
-      (Model ethPrice ethAddresses address ethBalances, Cmd.none)
+      ({ model | formAddress = address }, Cmd.none)
 
     ReceivedEthBalance address (Ok weiBalance) ->
-      let
-        ethBalance =
-          (toFloat weiBalance) / 1000000000000000000
-
-        newBalances =
-          Dict.insert address ethBalance ethBalances
-
-      in
-        (Model ethPrice ethAddresses formAddress newBalances, Cmd.none)
+      ({ model | ethBalances = (insertWeiBalance address weiBalance model.ethBalances) }, Cmd.none)
 
     ReceivedEthBalance address (Err error) ->
       case error of
         Http.BadPayload message response ->
-          Debug.crash message
+          (model, Debug.crash ("BadPayload" ++ message))
 
         _ ->
-          Debug.crash "OTHER ERROR"
+          (model, Debug.crash ("Other error fetching balance for " ++ address))
 
     ReceivedEthPrice (Ok price) ->
-      (Model (Result.toMaybe (String.toFloat price)) ethAddresses formAddress ethBalances, Cmd.none)
+      ({ model | ethPrice = (price |> String.toFloat |> Result.toMaybe) }, Cmd.none)
 
     ReceivedEthPrice (Err _) ->
-      (Model ethPrice ethAddresses formAddress ethBalances, Cmd.none)
+      (model, Debug.crash "Error fetching price")
 
 -- VIEW --
 
