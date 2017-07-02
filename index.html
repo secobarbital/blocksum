@@ -1,0 +1,24 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Blocksum</title>
+    <style>
+      html,head,body { padding:0; margin:0; }
+      body { font-family: calibri, helvetica, arial, sans-serif; }
+    </style>
+  </head>
+  <body>
+    <script src="elm.js"></script>
+    <script>
+      var key = 'blocksum-model'
+      var storedState = localStorage.getItem(key);
+      var startingState = storedState ? JSON.parse(storedState) : null;
+      var app = Elm.Main.fullscreen(startingState);
+
+      app.ports.setStorage.subscribe(function (state) {
+        localStorage.setItem(key, JSON.stringify(state));
+      });
+    </script>
+  </body>
+</html>

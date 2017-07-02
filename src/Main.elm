@@ -1,19 +1,22 @@
+port module Main exposing (..)
+
 import Dict exposing (Dict)
 import FormatNumber exposing (format)
 import FormatNumber.Locales exposing (usLocale)
 import Json.Decode as Decode
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (..)
+import Html.Events exposing (onClick, onInput, onSubmit)
 import Http
 
+main : Program (Maybe SerializableModel) Model Msg
 main =
-  Html.program
-  { init = init
-  , update = update
-  , view = view
-  , subscriptions = subscriptions
-  }
+  Html.programWithFlags
+    { init = init
+    , update = updateWithStorage
+    , view = view
+    , subscriptions = (always Sub.none)
+    }
 
 -- MODEL --
 
@@ -24,9 +27,78 @@ type alias Model =
   , ethBalances : Dict String Float
   }
 
+type alias SerializableModel =
+  { ethPrice : Maybe Float
+  , ethAddresses : List String
+  , formAddress : String
+  , ethBalances : List (String, Float)
+  }
+
+emptyModel : Model
+emptyModel =
+  { ethPrice = Nothing
+  , ethAddresses = []
+  , formAddress = ""
+  , ethBalances = Dict.empty
+  }
+
+serializeModel : Model -> SerializableModel
+serializeModel model =
+  { model | ethBalances = Dict.toList model.ethBalances }
+
+deserializeModel : SerializableModel -> Model
+deserializeModel model =
+  { model | ethBalances = Dict.fromList model.ethBalances }
+
+port setStorage : SerializableModel -> Cmd msg
+
+-- INIT --
+
+decodeEthPrice : Decode.Decoder String
+decodeEthPrice =
+  Decode.at [ "0", "price_usd" ] Decode.string
+
+fetchEthPrice : Cmd Msg
+fetchEthPrice =
+  let
+    url =
+      "https://api.coinmarketcap.com/v1/ticker/ethereum/"
+
+    request =
+      Http.get url decodeEthPrice
+  in
+    Http.send ReceivedEthPrice request
+
+decodeEthBalance : Decode.Decoder Int
+decodeEthBalance =
+  Decode.field "final_balance" Decode.int
+
+fetchEthBalance : String -> Cmd Msg
+fetchEthBalance address =
+  let
+    url =
+      "https://api.blockcypher.com/v1/eth/main/addrs/" ++ address ++ "/balance"
+
+    request =
+      Http.get url decodeEthBalance
+
+  in
+    Http.send (ReceivedEthBalance address) request
+
+init : Maybe SerializableModel -> (Model, Cmd Msg)
+init savedModel =
+  let
+    model =
+      savedModel
+      |> Maybe.map deserializeModel
+      |> Maybe.withDefault emptyModel
+  in
+    (model, fetchEthPrice)
+
 -- UPDATE --
 
-type Msg = AddAddress
+type Msg
+  = AddAddress
   | DeleteAddress String
   | FetchEthPrice
   | ReceivedEthBalance String (Result Http.Error Int)
@@ -45,10 +117,22 @@ update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
     AddAddress ->
-      ({ model | ethAddresses = (List.append model.ethAddresses [model.formAddress]) }, fetchEthBalance model.formAddress)
+      let
+        newAddresses = List.append model.ethAddresses [model.formAddress]
+        newModel =
+          { model |
+              ethAddresses = newAddresses,
+              formAddress = ""
+          }
+      in
+        (newModel, fetchEthBalance model.formAddress)
 
     DeleteAddress address ->
-      ({ model | ethAddresses = (List.filter ((/=) address) model.ethAddresses) }, Cmd.none)
+      let
+        newAddresses = List.filter ((/=) address) model.ethAddresses
+        newModel = { model | ethAddresses = newAddresses }
+      in
+        (newModel, Cmd.none)
 
     FetchEthPrice ->
       (model, fetchEthPrice)
@@ -57,7 +141,11 @@ update msg model =
       ({ model | formAddress = address }, Cmd.none)
 
     ReceivedEthBalance address (Ok weiBalance) ->
-      ({ model | ethBalances = (insertWeiBalance address weiBalance model.ethBalances) }, Cmd.none)
+      let
+        newBalances = insertWeiBalance address weiBalance model.ethBalances
+        newModel = { model | ethBalances = newBalances }
+      in
+        (newModel, Cmd.none)
 
     ReceivedEthBalance address (Err error) ->
       case error of
@@ -68,10 +156,26 @@ update msg model =
           (model, Debug.crash ("Other error fetching balance for " ++ address))
 
     ReceivedEthPrice (Ok price) ->
-      ({ model | ethPrice = (price |> String.toFloat |> Result.toMaybe) }, Cmd.none)
+      let
+        newPrice = price
+          |> String.toFloat
+          |> Result.toMaybe
+        newModel = { model | ethPrice = newPrice }
+      in
+        (newModel, Cmd.none)
 
     ReceivedEthPrice (Err _) ->
       (model, Debug.crash "Error fetching price")
+
+updateWithStorage : Msg -> Model -> (Model, Cmd Msg)
+updateWithStorage msg model =
+  let
+    (newModel, cmds) =
+      update msg model
+
+    serializableModel = serializeModel newModel
+  in
+    (newModel , Cmd.batch [ setStorage serializableModel, cmds ])
 
 -- VIEW --
 
@@ -124,46 +228,3 @@ view { ethPrice, ethAddresses, formAddress, ethBalances } =
       , input [ type_ "submit", name "Submit" ] []
       ]
     ]
-
--- SUBSCRIPTIONS --
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-  Sub.none
-
--- INIT --
-
-decodeEthPrice : Decode.Decoder String
-decodeEthPrice =
-  Decode.at [ "0", "price_usd" ] Decode.string
-
-fetchEthPrice : Cmd Msg
-fetchEthPrice =
-  let
-    url =
-      "https://api.coinmarketcap.com/v1/ticker/ethereum/"
-
-    request =
-      Http.get url decodeEthPrice
-  in
-    Http.send ReceivedEthPrice request
-
-decodeEthBalance : Decode.Decoder Int
-decodeEthBalance =
-  Decode.field "final_balance" Decode.int
-
-fetchEthBalance : String -> Cmd Msg
-fetchEthBalance address =
-  let
-    url =
-      "https://api.blockcypher.com/v1/eth/main/addrs/" ++ address ++ "/balance"
-
-    request =
-      Http.get url decodeEthBalance
-
-  in
-    Http.send (ReceivedEthBalance address) request
-
-init : (Model, Cmd Msg)
-init =
-  (Model Nothing [] "" Dict.empty, fetchEthPrice)
