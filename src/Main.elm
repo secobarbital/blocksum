@@ -214,17 +214,26 @@ formatAddresses : Maybe Float -> Dict String Float -> List String -> List (Html 
 formatAddresses price balances addresses =
   List.map (formatAddress price balances) addresses
 
+viewPrice ethPrice =
+  h2 []
+    [ text ("Price: " ++ (formatPrice ethPrice))
+    , button [ onClick FetchEthPrice ] [ text "fetch" ]
+    ]
+
+viewBalances ethPrice ethBalances ethAddresses =
+  table [] (formatAddresses ethPrice ethBalances ethAddresses)
+
+viewAddressForm formAddress =
+  Html.form [ onSubmit AddAddress ]
+    [ input [ name "address", value formAddress, onInput TypeAddress ] []
+    , input [ type_ "submit", name "Submit" ] []
+    ]
+
 view : Model -> Html Msg
 view { ethPrice, ethAddresses, formAddress, ethBalances } =
   div []
     [ h1 [] [ text "Blocksum" ]
-    , h2 []
-      [ text ("Price: " ++ (formatPrice ethPrice))
-      , button [ onClick FetchEthPrice ] [ text "fetch" ]
-      ]
-    , table [] (formatAddresses ethPrice ethBalances ethAddresses)
-    , Html.form [ onSubmit AddAddress ]
-      [ input [ name "address", value formAddress, onInput TypeAddress ] []
-      , input [ type_ "submit", name "Submit" ] []
-      ]
+    , viewPrice ethPrice
+    , viewBalances ethPrice ethBalances ethAddresses
+    , viewAddressForm formAddress
     ]
