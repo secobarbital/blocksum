@@ -214,15 +214,42 @@ formatAddresses : Maybe Float -> Dict String Float -> List String -> List (Html 
 formatAddresses price balances addresses =
   List.map (formatAddress price balances) addresses
 
+viewPrice : Maybe Float -> Html Msg
 viewPrice ethPrice =
   h2 []
     [ text ("Price: " ++ (formatPrice ethPrice))
     , button [ onClick FetchEthPrice ] [ text "fetch" ]
     ]
 
+viewBalances : Maybe Float -> Dict String Float -> List String -> Html Msg
 viewBalances ethPrice ethBalances ethAddresses =
-  table [] (formatAddresses ethPrice ethBalances ethAddresses)
+  let
+    balanceTotal =
+      ethBalances
+      |> Dict.values
+      |> List.sum
 
+    valueTotal =
+      ethPrice
+      |> (*) balanceTotal
+
+  in
+    table []
+      [ thead []
+        [ th [] [ text "Address" ]
+        , th [] [ text "Balance" ]
+        , th [] [ text "Value" ]
+        , th [] [ text "Actions" ]
+        ]
+      , tbody [] (formatAddresses ethPrice ethBalances ethAddresses)
+      , tfoot []
+        [ th [] [ text "Total" ]
+        , th [] [ text (Maybe.withDefault "" balanceTotal) ]
+        , th [] [ text valueTotal ]
+        ]
+      ]
+
+viewAddressForm : String -> Html Msg
 viewAddressForm formAddress =
   Html.form [ onSubmit AddAddress ]
     [ input [ name "address", value formAddress, onInput TypeAddress ] []
